@@ -6,6 +6,7 @@ import fs from 'fs';
 import SwapAppSettingsValidation from '../validation/SwapAppSettings';
 import AppSettingsMasking from './AppSettingsMasking';
 import AppSettingsHiding from './AppSettingsHiding';
+import { warnFunctionAppCriticalSettings } from '../validation/FunctionAppWarnings';
 
 export enum AppSettingsType {
   AppSettings = 'AppSettings',
@@ -52,6 +53,7 @@ export default class AppSettingsBase {
   public validate() {
     new SwapAppSettingsValidation(this.swapAppService, this.source).validate(this.swapAppService.slot);
     new SwapAppSettingsValidation(this.swapAppService, this.source).validate(this.swapAppService.targetSlot);
+    warnFunctionAppCriticalSettings(this.swapAppService);
     return this;
   }
 

@@ -2,6 +2,8 @@ import { ISwapAppSetting } from './ISwapAppSetting';
 
 export type SlotType = 'source' | 'target';
 
+export type ResourceType = 'webapp' | 'functionapp';
+
 export enum DefaultSensitiveEnum {
   true = 'true',
   false = 'false',
@@ -24,6 +26,7 @@ export interface ISwapAppService {
   defaultSlotSetting: DefaultSlotSettingEnum;
   defaultSensitive: DefaultSensitiveEnum;
   defaultHideValue?: boolean;
+  resourceType?: ResourceType;
   appSettings: ISwapAppSetting[];
   connectionStrings: ISwapAppSetting[];
 }

@@ -1,15 +1,13 @@
-name: 'Safely Swap Azure App Service Slot'
-description: 'Provide a description here'
+name: 'Safely Swap Azure App Service & Function App Slot'
+description: 'Safely swap deployment slots for Azure App Service and Azure Function App with slot-setting protection and review workflow'
 author: 'Thada'
 inputs:
   mode:
     required: true
-    description: 'input description here'
-    default: 'default value if applicable'
+    description: 'Operation mode: get-deploy-slots, create-swap-plan, set-deploy-slots, swap-slots, or clean'
   config:
     required: false
-    description: 'input description here'
-    default: 'default value if applicable'
+    description: 'JSON configuration for the swap action. Supports an optional resourceType field accepting "webapp" (default) or "functionapp" to control which Azure CLI commands are used and enable Function App-specific warnings.'
   token:
     required: false
     description: 'personal access token'

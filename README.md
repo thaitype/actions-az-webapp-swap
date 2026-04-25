@@ -21,11 +21,13 @@ To be more clear,
 - Prevent unwanted swap app settings between two slots
 - Support multiple Azure App Services
   - Users can reviews changes all app services app settings before swap
-  - Users can config which the app setting will be swapped or not. 
+  - Users can config which the app setting will be swapped or not.
   - Automatically fix the app setting to be sticked with desired slot following config
+- **Support Azure Function Apps** via `resourceType: "functionapp"` in config
+  - Warns when critical Function App settings (`AzureWebJobsStorage`, `FUNCTIONS_WORKER_RUNTIME`, etc.) are not marked as slot-sticky
 - Leverage GitHub Features
   - GitHub Action Matrix for retryable steps
-  - GitHub Pull Request review process for protecting unintentionally swap app service. 
+  - GitHub Pull Request review process for protecting unintentionally swap app service.
 
 This GitHub Actions is required to composition multiple GitHub Actions events for using full workflows as see figure:
 
@@ -179,7 +181,42 @@ jobs:
 
 ```
 
-Write a JSON config file: 
+### Azure Function App Example
+
+To swap slots for an Azure Function App, set `resourceType` to `"functionapp"`:
+
+```json
+[
+  {
+    "name": "my-function-app",
+    "resourceGroup": "rg-function-app",
+    "slot": "staging",
+    "targetSlot": "production",
+    "resourceType": "functionapp",
+    "defaultSlotSetting": "true",
+    "defaultSensitive": "false",
+    "appSettings": [
+      {
+        "name": "AzureWebJobsStorage",
+        "sensitive": true,
+        "slotSetting": true
+      },
+      {
+        "name": "FUNCTIONS_WORKER_RUNTIME",
+        "sensitive": false,
+        "slotSetting": true
+      }
+    ],
+    "connectionStrings": []
+  }
+]
+```
+
+> When `resourceType` is `"functionapp"`, the action will warn if critical Function App settings (`AzureWebJobsStorage`, `FUNCTIONS_WORKER_RUNTIME`, `FUNCTIONS_EXTENSION_VERSION`, `WEBSITE_CONTENTAZUREFILECONNECTIONSTRING`, `WEBSITE_CONTENTSHARE`) are not marked as `slotSetting: true`.
+
+### Azure Web App Example (default)
+
+Write a JSON config file (when `resourceType` is omitted, it defaults to `"webapp"`):
 
 ```json
 [

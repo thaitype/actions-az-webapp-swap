@@ -396,7 +396,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SwapSlots = void 0;
 const core = __importStar(__nccwpck_require__(37484));
-const azureUtility_1 = __nccwpck_require__(86885);
+const AzureResourceStrategy_1 = __nccwpck_require__(64668);
 class SwapSlots {
     constructor(swapAppService) {
         this.swapAppService = swapAppService;
@@ -405,7 +405,8 @@ class SwapSlots {
         return __awaiter(this, void 0, void 0, function* () {
             core.debug(`Using swap-slots mode`);
             const { name, resourceGroup, slot, targetSlot, subscriptionId } = this.swapAppService;
-            yield (0, azureUtility_1.webAppSwap)(name, resourceGroup, slot, targetSlot, { subscriptionId });
+            const strategy = AzureResourceStrategy_1.AzureResourceStrategyFactory.create(this.swapAppService);
+            yield strategy.swap(name, resourceGroup, slot, targetSlot, { subscriptionId });
         });
     }
 }
@@ -486,8 +487,8 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(37484));
 const path_1 = __importDefault(__nccwpck_require__(16928));
 const fs_1 = __importDefault(__nccwpck_require__(79896));
-const azureUtility_1 = __nccwpck_require__(86885);
 const AppSettingsBase_1 = __importStar(__nccwpck_require__(75309));
+const AzureResourceStrategy_1 = __nccwpck_require__(64668);
 class AppSettings extends AppSettingsBase_1.default {
     constructor(swapAppService, options) {
         super(swapAppService, AppSettingsBase_1.AppSettingsType.AppSettings, options);
@@ -495,11 +496,13 @@ class AppSettings extends AppSettingsBase_1.default {
     /** @override */
     list() {
         return __awaiter(this, void 0, void 0, function* () {
-            core.info('Listing App Setting from Azure Web App (Azure App Service) ...');
+            const resourceLabel = this.swapAppService.resourceType === 'functionapp' ? 'Azure Function App' : 'Azure Web App (Azure App Service)';
+            core.info(`Listing App Setting from ${resourceLabel} ...`);
             const { name, resourceGroup, slot, targetSlot, subscriptionId } = this.swapAppService;
+            const strategy = AzureResourceStrategy_1.AzureResourceStrategyFactory.create(this.swapAppService);
             [this.source, this.target] = yield Promise.all([
-                (0, azureUtility_1.webAppListAppSettings)(name, resourceGroup, { subscriptionId, slot }),
-                (0, azureUtility_1.webAppListAppSettings)(name, resourceGroup, { subscriptionId, slot: targetSlot }),
+                strategy.listAppSettings(name, resourceGroup, { subscriptionId, slot }),
+                strategy.listAppSettings(name, resourceGroup, { subscriptionId, slot: targetSlot }),
             ]);
             return this;
         });
@@ -514,7 +517,8 @@ class AppSettings extends AppSettingsBase_1.default {
                 fs_1.default.mkdirSync(workingDirectory, { recursive: true });
             fs_1.default.writeFileSync(appSettingPath, JSON.stringify(appSettings), defaultEncoding);
             core.info('Start set app Setting');
-            yield (0, azureUtility_1.webAppSetAppSettings)(name, resourceGroup, appSettingPath, { subscriptionId, slot });
+            const strategy = AzureResourceStrategy_1.AzureResourceStrategyFactory.create(this.swapAppService);
+            yield strategy.setAppSettings(name, resourceGroup, appSettingPath, { subscriptionId, slot });
             core.info('Removing file');
             fs_1.default.rmSync(appSettingPath, { force: true });
         });
@@ -569,6 +573,7 @@ const SwapAppSettings_1 = __importDefault(__nccwpck_require__(17137));
 const SwapAppSettings_2 = __importDefault(__nccwpck_require__(26765));
 const AppSettingsMasking_1 = __importDefault(__nccwpck_require__(45438));
 const AppSettingsHiding_1 = __importDefault(__nccwpck_require__(27503));
+const FunctionAppWarnings_1 = __nccwpck_require__(63504);
 var AppSettingsType;
 (function (AppSettingsType) {
     AppSettingsType["AppSettings"] = "AppSettings";
@@ -609,6 +614,7 @@ class AppSettingsBase {
     validate() {
         new SwapAppSettings_2.default(this.swapAppService, this.source).validate(this.swapAppService.slot);
         new SwapAppSettings_2.default(this.swapAppService, this.source).validate(this.swapAppService.targetSlot);
+        (0, FunctionAppWarnings_1.warnFunctionAppCriticalSettings)(this.swapAppService);
         return this;
     }
     mask() {
@@ -838,6 +844,92 @@ exports.AppSettingsProviderFactory = AppSettingsProviderFactory;
 
 /***/ }),
 
+/***/ 64668:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AzureResourceStrategyFactory = exports.FunctionAppStrategy = exports.WebAppStrategy = void 0;
+const azureUtility_1 = __nccwpck_require__(86885);
+class WebAppStrategy {
+    listAppSettings(name, resourceGroup, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (0, azureUtility_1.webAppListAppSettings)(name, resourceGroup, options);
+        });
+    }
+    setAppSettings(name, resourceGroup, appSettingPath, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (0, azureUtility_1.webAppSetAppSettings)(name, resourceGroup, appSettingPath, options);
+        });
+    }
+    listConnectionStrings(name, resourceGroup, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (0, azureUtility_1.webAppListConnectionStrings)(name, resourceGroup, options);
+        });
+    }
+    setConnectionStrings(name, resourceGroup, appSettings, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (0, azureUtility_1.webAppSetConnectionStrings)(name, resourceGroup, appSettings, options);
+        });
+    }
+    swap(name, resourceGroup, slot, targetSlot, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (0, azureUtility_1.webAppSwap)(name, resourceGroup, slot, targetSlot, options);
+        });
+    }
+}
+exports.WebAppStrategy = WebAppStrategy;
+class FunctionAppStrategy {
+    listAppSettings(name, resourceGroup, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (0, azureUtility_1.functionAppListAppSettings)(name, resourceGroup, options);
+        });
+    }
+    setAppSettings(name, resourceGroup, appSettingPath, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (0, azureUtility_1.functionAppSetAppSettings)(name, resourceGroup, appSettingPath, options);
+        });
+    }
+    listConnectionStrings(name, resourceGroup, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (0, azureUtility_1.functionAppListConnectionStrings)(name, resourceGroup, options);
+        });
+    }
+    setConnectionStrings(name, resourceGroup, appSettings, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (0, azureUtility_1.functionAppSetConnectionStrings)(name, resourceGroup, appSettings, options);
+        });
+    }
+    swap(name, resourceGroup, slot, targetSlot, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (0, azureUtility_1.functionAppSwap)(name, resourceGroup, slot, targetSlot, options);
+        });
+    }
+}
+exports.FunctionAppStrategy = FunctionAppStrategy;
+class AzureResourceStrategyFactory {
+    static create(swapAppService) {
+        if (swapAppService.resourceType === 'functionapp') {
+            return new FunctionAppStrategy();
+        }
+        return new WebAppStrategy();
+    }
+}
+exports.AzureResourceStrategyFactory = AzureResourceStrategyFactory;
+
+
+/***/ }),
+
 /***/ 14256:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -873,8 +965,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(37484));
-const azureUtility_1 = __nccwpck_require__(86885);
 const AppSettingsBase_1 = __importStar(__nccwpck_require__(75309));
+const AzureResourceStrategy_1 = __nccwpck_require__(64668);
 class ConnectionStrings extends AppSettingsBase_1.default {
     constructor(swapAppService, options) {
         super(swapAppService, AppSettingsBase_1.AppSettingsType.ConnectionStrings, options);
@@ -884,11 +976,13 @@ class ConnectionStrings extends AppSettingsBase_1.default {
     /** @override */
     list() {
         return __awaiter(this, void 0, void 0, function* () {
-            core.info('Listing App Setting from Azure Web App (Azure App Service) ...');
+            const resourceLabel = this.swapAppService.resourceType === 'functionapp' ? 'Azure Function App' : 'Azure Web App (Azure App Service)';
+            core.info(`Listing Connection Strings from ${resourceLabel} ...`);
             const { name, resourceGroup, slot, targetSlot, subscriptionId } = this.swapAppService;
+            const strategy = AzureResourceStrategy_1.AzureResourceStrategyFactory.create(this.swapAppService);
             [this.source, this.target] = yield Promise.all([
-                (0, azureUtility_1.webAppListConnectionStrings)(name, resourceGroup, { subscriptionId, slot }),
-                (0, azureUtility_1.webAppListConnectionStrings)(name, resourceGroup, { subscriptionId, slot: targetSlot }),
+                strategy.listConnectionStrings(name, resourceGroup, { subscriptionId, slot }),
+                strategy.listConnectionStrings(name, resourceGroup, { subscriptionId, slot: targetSlot }),
             ]);
             return this;
         });
@@ -898,7 +992,8 @@ class ConnectionStrings extends AppSettingsBase_1.default {
         return __awaiter(this, void 0, void 0, function* () {
             const { name, resourceGroup, subscriptionId } = this.swapAppService;
             core.info('Start set ConnectionString');
-            yield (0, azureUtility_1.webAppSetConnectionStrings)(name, resourceGroup, appSettings, { subscriptionId, slot });
+            const strategy = AzureResourceStrategy_1.AzureResourceStrategyFactory.create(this.swapAppService);
+            yield strategy.setConnectionStrings(name, resourceGroup, appSettings, { subscriptionId, slot });
         });
     }
 }
@@ -1281,7 +1376,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.webAppSwap = exports.webAppSetAppSettings = exports.webAppListAppSettings = exports.webAppSetConnectionStrings = exports.webAppListConnectionStrings = exports.azureCommands = exports.buildAzCommandOptions = void 0;
+exports.functionAppSwap = exports.functionAppSetAppSettings = exports.functionAppListAppSettings = exports.functionAppSetConnectionStrings = exports.functionAppListConnectionStrings = exports.webAppSwap = exports.webAppSetAppSettings = exports.webAppListAppSettings = exports.webAppSetConnectionStrings = exports.webAppListConnectionStrings = exports.azureCommands = exports.buildAzCommandOptions = void 0;
 const executeProcess_1 = __nccwpck_require__(58596);
 const common_tags_1 = __nccwpck_require__(69673);
 function buildAzCommandOptions(options) {
@@ -1359,6 +1454,65 @@ exports.azureCommands = {
         --target-slot ${targetSlot}
     `;
     },
+    functionAppListAppSettings: (name, resourceGroup, options) => {
+        const { azSubscriptionCommand, azSlotCommand } = buildAzCommandOptions(options);
+        return (0, common_tags_1.stripIndent) `
+      az functionapp config appsettings list \\
+          --name ${name} \\
+          ${azSlotCommand} \\
+          ${azSubscriptionCommand} \\
+          --resource-group ${resourceGroup}
+  `;
+    },
+    functionAppListConnectionStrings: (name, resourceGroup, options) => {
+        const { azSubscriptionCommand, azSlotCommand } = buildAzCommandOptions(options);
+        return (0, common_tags_1.stripIndent) `
+      az functionapp config connection-string list \\
+          --name ${name} \\
+          ${azSlotCommand} \\
+          ${azSubscriptionCommand} \\
+          --resource-group ${resourceGroup}
+  `;
+    },
+    functionAppSetConnectionString: (name, resourceGroup, appSetting, options) => {
+        const { azSubscriptionCommand, azSlotCommand } = buildAzCommandOptions(options);
+        const slotSettingCommand = appSetting.slotSetting === true ? '--slot-settings' : '--settings';
+        const key = appSetting.name.replaceAll('"', '\\"');
+        if (appSetting.value === null)
+            throw new Error('Something wrong with implementation, value should not be null');
+        const value = appSetting.value.replaceAll('"', '\\"');
+        return (0, common_tags_1.stripIndent) `
+      az functionapp config connection-string set \\
+          --name ${name} \\
+          ${azSlotCommand} \\
+          ${azSubscriptionCommand} \\
+          --connection-string-type ${appSetting.type} \\
+          --resource-group ${resourceGroup} \\
+          ${slotSettingCommand} "${key}"="${value}"
+  `;
+    },
+    functionAppSetAppSettingsByFile: (name, resourceGroup, appSettingPath, options) => {
+        const { azSubscriptionCommand, azSlotCommand } = buildAzCommandOptions(options);
+        return (0, common_tags_1.stripIndent) `
+      az functionapp config appsettings set \\
+        --name ${name} \\
+        --resource-group ${resourceGroup} \\
+        ${azSlotCommand} \\
+        ${azSubscriptionCommand} \\
+        --settings @${appSettingPath}
+    `;
+    },
+    functionAppDeploySlotSwap: (name, resourceGroup, slot, targetSlot, options) => {
+        const { azSubscriptionCommand } = buildAzCommandOptions(options);
+        return (0, common_tags_1.stripIndent) `
+      az functionapp deployment slot swap \\
+        --name ${name} \\
+        --resource-group ${resourceGroup} \\
+        --slot ${slot} \\
+        ${azSubscriptionCommand} \\
+        --target-slot ${targetSlot}
+    `;
+    },
 };
 function webAppListConnectionStrings(name, resourceGroup, options) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -1401,6 +1555,42 @@ function webAppSwap(name, resourceGroup, slot, targetSlot, options) {
     });
 }
 exports.webAppSwap = webAppSwap;
+function functionAppListConnectionStrings(name, resourceGroup, options) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const result = yield (0, executeProcess_1.executeProcess)(exports.azureCommands.functionAppListConnectionStrings(name, resourceGroup, options));
+        return JSON.parse((0, executeProcess_1.parseBufferToString)(result.stdout));
+    });
+}
+exports.functionAppListConnectionStrings = functionAppListConnectionStrings;
+function functionAppSetConnectionStrings(name, resourceGroup, appSettings, options) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const workers = [];
+        for (const appSetting of appSettings) {
+            workers.push((0, executeProcess_1.executeProcess)(exports.azureCommands.functionAppSetConnectionString(name, resourceGroup, appSetting, options)));
+        }
+        yield Promise.all(workers);
+    });
+}
+exports.functionAppSetConnectionStrings = functionAppSetConnectionStrings;
+function functionAppListAppSettings(name, resourceGroup, options) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const result = yield (0, executeProcess_1.executeProcess)(exports.azureCommands.functionAppListAppSettings(name, resourceGroup, options));
+        return JSON.parse((0, executeProcess_1.parseBufferToString)(result.stdout));
+    });
+}
+exports.functionAppListAppSettings = functionAppListAppSettings;
+function functionAppSetAppSettings(name, resourceGroup, appSettingPath, options) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return yield (0, executeProcess_1.executeProcess)(exports.azureCommands.functionAppSetAppSettingsByFile(name, resourceGroup, appSettingPath, options));
+    });
+}
+exports.functionAppSetAppSettings = functionAppSetAppSettings;
+function functionAppSwap(name, resourceGroup, slot, targetSlot, options) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return yield (0, executeProcess_1.executeProcess)(exports.azureCommands.functionAppDeploySlotSwap(name, resourceGroup, slot, targetSlot, options));
+    });
+}
+exports.functionAppSwap = functionAppSwap;
 
 
 /***/ }),
@@ -1667,6 +1857,64 @@ exports.findAppSettingName = findAppSettingName;
 
 /***/ }),
 
+/***/ 63504:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.warnFunctionAppCriticalSettings = exports.FUNCTION_APP_CRITICAL_SETTINGS = void 0;
+const core = __importStar(__nccwpck_require__(37484));
+exports.FUNCTION_APP_CRITICAL_SETTINGS = [
+    'AzureWebJobsStorage',
+    'FUNCTIONS_WORKER_RUNTIME',
+    'FUNCTIONS_EXTENSION_VERSION',
+    'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING',
+    'WEBSITE_CONTENTSHARE',
+];
+/**
+ * Emits core.warning() for each critical Function App setting that is not marked as slotSetting: true.
+ * Only runs when resourceType === 'functionapp'. Non-blocking.
+ */
+function warnFunctionAppCriticalSettings(swapAppService) {
+    if (swapAppService.resourceType !== 'functionapp') {
+        return;
+    }
+    const appSettingsByName = new Map();
+    for (const setting of swapAppService.appSettings) {
+        appSettingsByName.set(setting.name, { slotSetting: setting.slotSetting === true });
+    }
+    for (const criticalSetting of exports.FUNCTION_APP_CRITICAL_SETTINGS) {
+        const found = appSettingsByName.get(criticalSetting);
+        if (found && !found.slotSetting) {
+            core.warning(`Function App critical setting '${criticalSetting}' is not marked as slotSetting. Swapping this setting may cause issues.`);
+        }
+    }
+}
+exports.warnFunctionAppCriticalSettings = warnFunctionAppCriticalSettings;
+
+
+/***/ }),
+
 /***/ 47017:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -1691,6 +1939,7 @@ const SwapAppServiceSchema = zod_1.z.object({
     defaultSlotSetting: zod_1.z.nativeEnum(interfaces_1.DefaultSlotSettingEnum),
     defaultSensitive: zod_1.z.nativeEnum(interfaces_1.DefaultSensitiveEnum),
     defaultHideValue: zod_1.z.boolean().optional(),
+    resourceType: zod_1.z.enum(['webapp', 'functionapp']).optional(),
     appSettings: zod_1.z.array(AppSettingSchema).optional(),
     connectionStrings: zod_1.z.array(AppSettingSchema).optional(),
 });

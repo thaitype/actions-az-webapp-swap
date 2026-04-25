@@ -1,6 +1,6 @@
 import * as core from '@actions/core';
 import { ISwapAppService } from '../interfaces';
-import { webAppSwap } from '../utils/azureUtility';
+import { AzureResourceStrategyFactory } from '../core/AzureResourceStrategy';
 
 export class SwapSlots {
   constructor(private swapAppService: ISwapAppService) {}
@@ -8,6 +8,7 @@ export class SwapSlots {
   public async execute() {
     core.debug(`Using swap-slots mode`);
     const { name, resourceGroup, slot, targetSlot, subscriptionId } = this.swapAppService;
-    await webAppSwap(name, resourceGroup, slot, targetSlot, { subscriptionId });
+    const strategy = AzureResourceStrategyFactory.create(this.swapAppService);
+    await strategy.swap(name, resourceGroup, slot, targetSlot, { subscriptionId });
   }
 }

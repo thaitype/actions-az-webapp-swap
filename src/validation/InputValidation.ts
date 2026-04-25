@@ -18,6 +18,7 @@ const SwapAppServiceSchema = z.object({
   defaultSlotSetting: z.nativeEnum(DefaultSlotSettingEnum),
   defaultSensitive: z.nativeEnum(DefaultSensitiveEnum),
   defaultHideValue: z.boolean().optional(),
+  resourceType: z.enum(['webapp', 'functionapp']).optional(),
   appSettings: z.array(AppSettingSchema).optional(),
   connectionStrings: z.array(AppSettingSchema).optional(),
 });
